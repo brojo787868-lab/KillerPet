@@ -1,0 +1,6 @@
+{
+  "name": "Pet — Minecraft Plugin Studio by The Killer D God",
+  "description": "Interactive Spigot and Paper 1.21.4 Minecraft plugin workbench and live gameplay simulator for the Pet plugin by The Killer D God. Tame, level up, and customize companion pets with full Java source export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
