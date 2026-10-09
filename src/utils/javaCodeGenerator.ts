@@ -20,10 +20,16 @@ export interface GeneratedPluginFile {
 export function generatePluginFiles(
   config: PluginGlobalConfig,
   speciesList: PetSpeciesConfig[],
-  activePet: ActiveCompanionPet
+  activePet: ActiveCompanionPet,
+  githubOwner = 'thekillerdgod',
+  githubRepo = 'Pet-Plugin'
 ): GeneratedPluginFile[] {
   const pkg = config.mainPackage || 'com.thekillerdgod.pet';
   const pkgPath = pkg.replace(/\./g, '/');
+  const cleanOwner = githubOwner.trim() || 'thekillerdgod';
+  const cleanRepo = githubRepo.trim() || 'Pet-Plugin';
+  const repoUrl = `https://github.com/${cleanOwner}/${cleanRepo}`;
+  const jarFilename = `${config.pluginName}-${config.pluginVersion}-by-TheKillerDGod.jar`;
 
   const pluginYml = `# ============================================================
 # Plugin: ${config.pluginName}
@@ -1049,12 +1055,103 @@ public class PetCommandExecutor implements CommandExecutor, TabCompleter {
 }
 `;
 
+  const githubWorkflowYml = `name: Build & Release ${config.pluginName} Plugin (.jar)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-plugin-jar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ${config.pluginName} Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Paper / Spigot 1.21.4)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Compile ${jarFilename} with Maven
+        run: mvn -B clean package --file pom.xml
+
+      - name: Upload Compiled Server Plugin (.jar) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${config.pluginName}-${config.pluginVersion}-Server-Plugin
+          path: target/${jarFilename}
+
+      - name: Publish Automatic GitHub Release (.jar Download)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${config.pluginVersion}
+          name: "${config.pluginName} v${config.pluginVersion} by ${config.authorName}"
+          body: |
+            ## ${config.pluginName} v${config.pluginVersion} — Minecraft Companion Plugin
+            **Developer:** ${config.authorName}
+            **Server Compatibility:** Paper / Spigot / Purpur ${config.apiVersion}.4+ (Java 21)
+
+            ### Direct Server Installation
+            1. Download **\`${jarFilename}\`** from the Assets section below.
+            2. Place the \`.jar\` file inside your Minecraft server's \`plugins/\` folder.
+            3. Restart your server and run \`/pet gui\` in-game.
+          files: target/${jarFilename}
+          prerelease: false
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+`;
+
+  const gitignoreContent = `target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse / NetBeans / VSCode ###
+.classpath
+.project
+.settings/
+.vscode/
+
+### OS ###
+.DS_Store
+Thumbs.db
+`;
+
   const readmeMd = `# ${config.pluginName} — Minecraft Companion Pet Plugin
+
+[![Build & Release Plugin (.jar)](${repoUrl}/actions/workflows/build-and-release.yml/badge.svg)](${repoUrl}/actions/workflows/build-and-release.yml)
+[![Download Latest .JAR Release](https://img.shields.io/badge/Download_Plugin-.JAR_Release-10b981?style=for-the-badge&logo=github)](${repoUrl}/releases/latest/download/${jarFilename})
 
 - **Plugin Name:** \`${config.pluginName}\`
 - **Developer:** \`${config.authorName}\`
 - **Target Server API:** Paper / Spigot \`${config.apiVersion}.4+\` (Java 21)
 - **Main Class:** \`${pkg}.PetPlugin\`
+- **GitHub Repository:** [${repoUrl}](${repoUrl})
+
+---
+
+## Direct \`.jar\` Download from GitHub Releases
+
+Once pushed to GitHub, **GitHub Actions** automatically compiles the Java source code with Maven and publishes the ready-to-use server \`.jar\` file:
+
+- **Direct \`.jar\` Download Link:** [\`${jarFilename}\`](${repoUrl}/releases/latest/download/${jarFilename})
+- **All GitHub Releases:** [\`${repoUrl}/releases\`](${repoUrl}/releases)
+
+---
 
 ## Core Features
 
@@ -1072,16 +1169,24 @@ public class PetCommandExecutor implements CommandExecutor, TabCompleter {
    - Equip **Particle Trails** (\`FLAME_SPIRAL\`, \`SOUL_FIRE_FLAME\`, \`ENCHANTMENT_TABLE\`, \`DRAGON_BREATH\`, \`CHERRY_LEAVES\`, \`TOTEM_OF_UNDYING\`, \`SCULK_SOUL\`).
    - Equip **Cosmetic Hats** (\`ROYAL_GOLD_CROWN\`, \`NETHERITE_HELMET\`, \`ARCANE_WIZARD_HAT\`, \`END_CRYSTAL_HALO\`) and **Collar Dyes**.
 
-## How to Compile into a Server \`.jar\`
+## How to Compile Locally with Maven
 
 \`\`\`bash
 mvn clean package
 \`\`\`
 
-Copy the compiled \`target/${config.pluginName}-${config.pluginVersion}-by-TheKillerDGod.jar\` into your Minecraft server's \`plugins/\` folder and restart the server.
+Copy the compiled \`target/${jarFilename}\` into your Minecraft server's \`plugins/\` folder and restart the server.
 `;
 
   return [
+    {
+      id: 'github_workflow_yml',
+      filename: 'build-and-release.yml',
+      relativePath: '.github/workflows/build-and-release.yml',
+      language: 'yaml',
+      description: 'GitHub Actions CI/CD workflow that compiles the Java plugin into a .jar and publishes a GitHub Release automatically.',
+      content: githubWorkflowYml,
+    },
     {
       id: 'plugin_yml',
       filename: 'plugin.yml',
@@ -1155,11 +1260,19 @@ Copy the compiled \`target/${config.pluginName}-${config.pluginVersion}-by-TheKi
       content: pomXml,
     },
     {
+      id: 'gitignore_file',
+      filename: '.gitignore',
+      relativePath: '.gitignore',
+      language: 'markdown',
+      description: 'Git ignore rules for Maven target/ directory and IDE metadata.',
+      content: gitignoreContent,
+    },
+    {
       id: 'readme_md',
       filename: 'README.md',
       relativePath: 'README.md',
       language: 'markdown',
-      description: 'Build instructions and server admin documentation for Pet by The Killer D God.',
+      description: 'GitHub repository README with direct .jar Release download button and server setup guide.',
       content: readmeMd,
     },
   ];

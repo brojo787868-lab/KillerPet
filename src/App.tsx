@@ -13,6 +13,7 @@ import {
   Award,
   Code2,
   Sliders,
+  FolderGit2,
 } from 'lucide-react';
 import {
   ActiveCompanionPet,
@@ -36,6 +37,7 @@ import {
 } from './components/PixelPetCanvas';
 import { MinecraftChestGuiPanel } from './components/MinecraftChestGuiPanel';
 import { PluginSourceIde } from './components/PluginSourceIde';
+import { GitHubHostingPanel } from './components/GitHubHostingPanel';
 import {
   convertToZipEntries,
   generatePluginFiles,
@@ -48,11 +50,14 @@ type WorkspaceTab =
   | 'CUSTOMIZE'
   | 'SKILL_TREE'
   | 'CONFIGURATOR'
-  | 'SOURCE_CODE';
+  | 'SOURCE_CODE'
+  | 'GITHUB_HOSTING';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('SANDBOX');
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('GITHUB_HOSTING');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [githubOwner, setGithubOwner] = useState<string>('thekillerdgod');
+  const [githubRepo, setGithubRepo] = useState<string>('Pet-Plugin');
 
   // 1. Plugin Global Configuration
   const [pluginConfig, setPluginConfig] = useState<PluginGlobalConfig>({
@@ -556,10 +561,17 @@ export default function App() {
     );
   };
 
-  // Generate All Java / YAML / Maven Files dynamically
+  // Generate All Java / YAML / Maven / GitHub Workflow Files dynamically
   const generatedFiles = useMemo(
-    () => generatePluginFiles(pluginConfig, speciesList, activePet),
-    [pluginConfig, speciesList, activePet]
+    () =>
+      generatePluginFiles(
+        pluginConfig,
+        speciesList,
+        activePet,
+        githubOwner,
+        githubRepo
+      ),
+    [pluginConfig, speciesList, activePet, githubOwner, githubRepo]
   );
 
   // Download Full Maven Plugin ZIP
@@ -655,20 +667,6 @@ export default function App() {
             type="button"
             onClick={() => {
               soundFX.playGuiClick();
-              setActiveTab('CONFIGURATOR');
-            }}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              activeTab === 'CONFIGURATOR'
-                ? 'text-emerald-400 underline underline-offset-8 decoration-2'
-                : 'hover:text-slate-100'
-            }`}
-          >
-            Configurator
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              soundFX.playGuiClick();
               setActiveTab('SOURCE_CODE');
             }}
             className={`py-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
@@ -678,6 +676,20 @@ export default function App() {
             }`}
           >
             Java Source
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              soundFX.playGuiClick();
+              setActiveTab('GITHUB_HOSTING');
+            }}
+            className={`py-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'GITHUB_HOSTING'
+                ? 'text-emerald-400 underline underline-offset-8 decoration-2'
+                : 'hover:text-slate-100'
+            }`}
+          >
+            GitHub &amp; Release
           </button>
         </nav>
 
@@ -743,12 +755,36 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   soundFX.playGuiClick();
+                  setActiveTab('CONFIGURATOR');
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-slate-700 bg-slate-900 hover:bg-slate-800 text-xs font-medium text-slate-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Configurator</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundFX.playGuiClick();
+                  setActiveTab('GITHUB_HOSTING');
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-emerald-500/60 bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-semibold text-emerald-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <FolderGit2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>GitHub Hosting &amp; .JAR Download</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundFX.playGuiClick();
                   setActiveTab('SOURCE_CODE');
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-slate-700 bg-slate-900 hover:bg-slate-800 text-xs font-medium text-slate-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Code2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Inspect Java Files ({generatedFiles.length})</span>
+                <span>Java Files ({generatedFiles.length})</span>
               </button>
             </div>
           </div>
@@ -859,6 +895,7 @@ export default function App() {
                 ['SKILL_TREE', 'Skill Tree'],
                 ['CONFIGURATOR', 'Configurator'],
                 ['SOURCE_CODE', 'Java Source'],
+                ['GITHUB_HOSTING', 'GitHub & .JAR'],
               ] as [WorkspaceTab, string][]
             ).map(([tabKey, label]) => (
               <button
@@ -1777,6 +1814,22 @@ export default function App() {
           <PluginSourceIde
             files={generatedFiles}
             onDownloadFullZip={handleDownloadFullPluginZip}
+          />
+        )}
+
+        {/* =====================================================================
+            TAB 6: GITHUB HOSTING & AUTOMATIC .JAR RELEASE BUILDER
+           ===================================================================== */}
+        {activeTab === 'GITHUB_HOSTING' && (
+          <GitHubHostingPanel
+            config={pluginConfig}
+            githubOwner={githubOwner}
+            githubRepo={githubRepo}
+            onChangeGithubOwner={setGithubOwner}
+            onChangeGithubRepo={setGithubRepo}
+            files={generatedFiles}
+            onDownloadZip={handleDownloadFullPluginZip}
+            onLog={appendLog}
           />
         )}
       </main>
